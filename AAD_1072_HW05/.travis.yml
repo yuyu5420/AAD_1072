@@ -1,0 +1,55 @@
+language: android
+dist: trusty
+env:
+  global:
+  - ANDROID_API=26
+  - ANDROID_BUILD_TOOLS=26.0.2
+  - PROJECT_1=BatteryLevelIndicator
+  - PROJECT_3=RecyclerView
+  - secure: Y02VijJlaJRlfVbS2tJsCJw/rirtDM+Vm2FY524yjhnXXXOk2K6m3GoJdiUjZ7oSl0q5weT6bfuXkVm4e1WJOUJCsakD0tqWYOhD2dIXGbR234OZGguxSbV6nEBN7MEW89vfT5gXEYT8RAZnE9BbkZg4vtpKySNZJViQU+R5cfsVEXmGkN536qvdnK1V8hw+Hyg/X8Sp4G5tfQ4reC4k+DzrS/U2u5dkc6vgL5KAB9eUWlAB3TThbsvnYxiuDfuJ0RAmYbSbXqA7FFfIp/F4pMpMiKTJizdEG+0i5GTQ88dehAgjkijlduzqUBemoZoqcPV73+3g4wmUCFjI9fNm+IAgMQRYhPuugTAb57ZtG6lXiYKaDlQ4iWXQ/PMfvZx16cxyR6BGh0omvP4DywfY/2VYUvCVe8R6bFjJ/9Z8dibx03CrmzPSLosKs/+mN0B9aTCZ3jzaq4yA8y2P7A5/l18e5HsgONqC+dCImLDbDqqYKG2CBAHCf+pTXoUa/yayeSdlCWxsfoz3vB8htMfKGjFD5A6RddTitd6xFL4YivqphI90AwlXRjyErP/CNXc1jNWK12pl+RGSGRSB53T0Dq4UEIdaWP9EeieVVIhbazSkjpRFSG/t+/SzXznkubFLrDXp9BYTxDkQFWORXMGj4N6hvgUJO4fPJAmqiwvMIac=
+  - secure: Wmp/xgz5zt3wRyEkKFUQ2WdNwnjVHWldURvp74L0Y0InRknxApu5zw1ccMJnmLMkuKyDFn8j4QxIGAGzjl+3wWTiko7upCI+X7OnflEW6HmtAHJtyzrTQ8F1cgHlrZdia8rshG+iILFEfUeIZ46v3MNXEYpo0TIdO2hJdYnivmBLdsr4kX6GXXcEI5nsLz0n8Cffny0QYTrYO5aVOZMjOM119bWjovPWrxnjkLPs5bZ3ELNW64y3TQEsb5+lxKRirgQKku/X56rsLJrpbQCDPjAnPbq9nNtLG5ziS7IUBmePQyq/iy+QdrgahEyr4QyTqWJLecQXDRO55l5LJOCvg6BR9qQ5FdzS7DsSXj6VYG8ZlqMlrgpPYBkovTYrHYuu+lZo4oYIFrSbntXQ/cCLlh05HvQtBrcBTneRQdSIJNFOHCHIpvf2Oi7cA8vlGuiCYvWTMfiOMmgE+dgYtWafwqC03z52F1YmfjqkOTu1QgAAah0CcfyKIxjxvV2efm0zQJJHbBA+HmrPMKGm7zjBeifENX20mdokRabQh5zCQthSG/NKdK2U4GzaFqtVdhlcCsMVHzo3r1Z849455q00Dmtril9XoGe1gvyS2F/4R/GMGeiblMqfg5AmtygWFGESxMh7Qysy/3Mnp31rFGhEA1ipgw8EF9AJ+qmrxivKby4=
+branches:
+  only:
+  - master
+android:
+  components:
+  - build-tools-$ANDROID_BUILD_TOOLS
+  - android-$ANDROID_API
+  - extra-android-m2repository
+before_cache:
+- rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
+- rm -fr $HOME/.gradle/caches/*/plugin-resolution/
+cache:
+  directories:
+  - "$HOME/.gradle/caches/"
+  - "$HOME/.gradle/wrapper/"
+  - "$HOME/.android/build-cache"
+before_install:
+- export PROJECT_ROOT="${PWD}"
+- chmod +x ${PROJECT_1}/gradlew
+- chmod +x ${PROJECT_3}/gradlew
+- chmod +x result_parser.py
+before_script:
+- adb kill-server
+- adb connect ${EMULATOR_SERVER}
+- adb devices
+script:
+- cd ${PROJECT_ROOT}
+- cd ${PROJECT_1} && ./gradlew connectedDebugAndroidTest --stacktrace
+- cd ${PROJECT_ROOT}
+- "./ll_parser.py; export R=$?"
+- test $R -eq 0
+- cd ${PROJECT_ROOT}
+- cd ${PROJECT_3} && ./gradlew connectedDebugAndroidTest --stacktrace
+after_script:
+- cd ${PROJECT_ROOT}
+- touch results.txt
+- "./result_parser.py ${PROJECT_ROOT}/${PROJECT_1}/app/build/reports/androidTests/connected/com.example.batterylevelindicator.BatteryLevelTest.html
+  >> results.txt"
+- if [ $R -eq 0 ]; then echo "LevelListTest Success" >> results.txt; fi
+- "./result_parser.py ${PROJECT_ROOT}/${PROJECT_3}/app/build/reports/androidTests/connected/com.example.android.recyclerview.GridLayoutManagerTest.html
+  >> results.txt"
+- echo $(basename ${TRAVIS_REPO_SLUG}) ${TRAVIS_BRANCH} ${TRAVIS_COMMIT} $(git show
+  -s --format=%ci ${TRAVIS_COMMIT} | cut -c 1-20) $(cat results.txt) > results.txt
+- awk  '//{for(i=6;i<NF;i=i+2) print $i"\t"$(i+1)}' results.txt
+- curl -d "@results.txt" -X POST ${DB_SERVER_URL}

@@ -1,0 +1,59 @@
+language: android
+dist: trusty
+env:
+  global:
+  - ANDROID_API=26
+  - ANDROID_BUILD_TOOLS=26.0.2
+  - PROJECT_1=NotifyMe
+  - PROJECT_2=AlarmManager
+  - PROJECT_3=JobScheduler
+  - PACKAGE_NAME=com.example.jobscheduler
+  - secure: Jm3mefOXQgZ8tDahZ/Kfdg2rQtDk0Ttbv4MuMO5nap+aICqQZ1yGCese0rKIJ+j4ku/irf9lpcq3oy5rExxVJekq4g1hg75PiG0lj6Fyg+V9FgVGKyrmms+b2NOI5GhOdnKwKOGFZC8xI2RUc2G4FXAjtfo8mOGF9Rq3ENwxOoz6d5BnXSuZSo/1m+ax6fZcuUACV4T8IKSF1hzDZqnE1BwLpaJfRqGlujJ/RaeLkqIRxCFdTQYcXfBtdOBOY2KFOwmyOfydIp3X1ovosJqeAAUDCPx4CdpDOIgqq3ByDwXDSBOc6E5c9NeErl7D6bgEodfHLEwsYtlf6ACu0gLnvTDwJQJKslDz/jWxm0hc3V4A5We/9YGSxFvx4pENvqw5+V9Mbp0x0yVrhRl2+MriVP7msI8rkU8Q90qMwIGGjdxDXESqOAA/a1mILjZb2ygelM0r70Ak65D14js0VK07REm0/P9M3cLYggaeNcOcXfv8ShxzYq47PBKYwddSJX9LwaLRx1CIVcAPlTAUjC4teFIcXqx/u8TaoLJP+Psi+fGU+7e3kOiWo6Lrgs5+6t4Ar6Md5oFATIdcC6gKO2ZpN+ksyJO+7w0l7trXyvI6ZHw1ftp6BJWKv+FXGOUPmsswqa18V8mQEI6hwZvVY+dAmaAW9cgTPo4rXuHnzTyjj54=
+  - secure: hjv5qDg6g2y/U2/q0EKibsjrLeyWtAFwEBPv5XBGrmrgbyLQ6f0ADZHrxDEZ2tblAKimMclq1H4GsrLa+bLjw20PhlQTlk3kgJJAduDaGr5jHak/KJzwFbVmmonDnrwhVU8DzoCJNkYxrVazj+Eyqo/cDvcJwjHy4CxYDyhtl106yt44XTfhi3kT8v0PW+BtVuPZXt4Afr52mYYcr5uKlFTs90AdEAijONLDnANKMoQ2S435leiMJxcQnbI48FmHdgSeLkkcYkKIZCfTM921pJLoZQVPqwjAqkPxa8Ix05Co3K27ERvrCjABw8F9haeGv2OmMS2pyvqNjJxjLcJKHOBEzjXofLxyBafL2yDpiVRG8MIgbNcUZOeSW6A79HYXoyy6sZVHncYOc1TSxGzxj9TFdd4IIzW17xsn4t+8omJF32DcAGtuZ2yRJ40SmpsI3ea+Twxs/b9WO+9GhB3iBTQxOcXgGAv+QPRzGocMyimO+6UR5U1kzW1UPpUom9l7ygmhEnHf/nYAAFRUydVyEkoIfu5iffAniiXdZywuFJy8SNU9HtJ0njxwOyV5wWYHMPvpNqCKPuHU9VZljoBQTnJn5tp/AV4GOC+Q6MAWmWA0b0UtIvem6t/blBq8mlTTXF2wWe9Loh4yEwYiXpoIYfUaGgYNk73MtKSZNhMq9X8=
+branches:
+  only:
+  - master
+android:
+  components:
+  - build-tools-$ANDROID_BUILD_TOOLS
+  - android-$ANDROID_API
+  - extra-android-m2repository
+before_install:
+- export PROJECT_ROOT="${PWD}"
+- chmod +x ${PROJECT_1}/gradlew
+- chmod +x ${PROJECT_2}/gradlew
+- chmod +x ${PROJECT_3}/gradlew
+- chmod +x result_parser.py
+- chmod +x result_parser_unit.py
+before_script:
+- adb kill-server
+- adb connect ${EMULATOR_SERVER}
+- adb devices
+- while true ; do adb get-state ; [[ $? == 1 ]] || break ; done
+- adb uninstall ${PACKAGE_NAME} || true
+- adb shell input keyevent 4
+script:
+- cd ${PROJECT_ROOT}
+- cd ${PROJECT_1} && ./gradlew connectedDebugAndroidTest --stacktrace
+- cd ${PROJECT_ROOT}
+- cd ${PROJECT_2} && ./gradlew test
+- cd ${PROJECT_ROOT}
+- adb shell input keyevent 4
+- cd ${PROJECT_3} && ./gradlew connectedDebugAndroidTest --stacktrace
+- cd ${PROJECT_ROOT}
+- cd ${PROJECT_3} && ./gradlew test
+- adb shell input keyevent 4
+after_script:
+- cd ${PROJECT_ROOT}
+- "./result_parser.py ${PROJECT_ROOT}/${PROJECT_1}/app/build/reports/androidTests/connected/com.android.example.notifyme.InboxStyleTest.html
+  >> results.txt"
+- "./result_parser_unit.py ${PROJECT_ROOT}/${PROJECT_2}/app/build/reports/tests/testDebugUnitTest/classes/com.example.alarmmanager.AlarmManagerTest.html
+  >> results.txt"
+- "./result_parser.py ${PROJECT_ROOT}/${PROJECT_3}/app/build/reports/androidTests/connected/com.example.jobscheduler.JobServiceTest.html
+  >> results.txt"
+- "./result_parser_unit.py ${PROJECT_ROOT}/${PROJECT_3}/app/build/reports/tests/testDebugUnitTest/classes/com.example.jobscheduler.JobInfoTest.html
+  >> results.txt"
+- echo $(basename ${TRAVIS_REPO_SLUG}) ${TRAVIS_BRANCH} ${TRAVIS_COMMIT} $(git show
+  -s --format=%ci ${TRAVIS_COMMIT} | cut -c 1-20) $(cat results.txt) > results.txt
+- awk  '//{for(i=6;i<NF;i=i+2) print $i"\t"$(i+1)}' results.txt
+- curl -d "@results.txt" -X POST ${DB_SERVER_URL}

@@ -1,0 +1,51 @@
+language: android
+dist: trusty
+env:
+  global:
+  - ANDROID_API=26
+  - ANDROID_BUILD_TOOLS=26.0.2
+  - PROJECT_1=Scorekeeper
+  - TESTNAME=DayNightTest
+  - secure: cJ4xBMgGXSKkSOEWfSg6Da8U94tW5eXECrHoWwbvB1m1gQn1wlr9sSzXsQrRPYSC/5tkzeB6kt8xEsr9E3TpLeMafRGr6fjDeDMwsZ1OVhc7qbw2Fg5skdlvK3M1a1LyOk4jP4kDMrcnK3ZImzd1f2PCxJshXjtArjpA/ejKwCoPhzhVIklA9BQBQSB3GaXQ63YaoaU5NNe5LQ2rGkUuvtnAUvKBcW8y6mWX+Wblsupr7Ce6+DSo+JfhY3gsKiGIob/0piZdoiiT2jGGQ1Cf8p8G3xGBuUWQ1Di2H1OIRnnDANRxNjQesCtPTUoHWxzr4V1cgrLM0nkzJM6WMHwIi2KYdYiDMoXVhFD7ZjgRK3VhCduufYioDQ2AxkIq/neJkJOXtJdN1Dlx7R1YPMqegyDaY4GT9evJvChokXvmwUJZeKq0nu6woBZ13hcaekPN61ivX8RAQw+vuxG3w6WLcyfqse5n38RHDd/2NgfhfaPsOGVo7ffxiRfW968a+LX7EkTWesc5uA8tsV/XsrT9GJbd/PEo5wnkC5CHKYMlYQMBU+yIN0exYSIKAHv6mNPCiUuit7KrSr3rBXekzOIyrkjYurpmsoEcD8lpVH023THkbKCZ0dppTMqBKcgCu92YNt6kGeM+6KymSUvAJpvx+MQTzSTYnZ72NE56gYvbmP8=
+  - secure: neu9DcmKwh4m7raPQ2E8K64zbTOyVVQj+4qRvjBG8OYrK/TK9uMqGy1rbW0yfbPRYQaAi7HQxNaISLfvxqm2KQqYqt6xJYf4r10loWa6iSKRHqwqOhrgbB2AWUwi/+1VoKSBjs5hG8G6DvIbaf1BIF1axojYlOVmIPY+Dvq85AzS/s7TD3vhKNAMYQBwoGEaVGZGaTx2sYr7KMKoDk7bmsTCbIPcIl4tAi0hUqzHFQGs3LdgaVPCgAZgwfHJkQqFAnkvKAHs73dHTOEqvCRWULeS29A2JN0W0Cfj5S4+HW6YVJDshjoCkX6bJGgXpI9iMvFwNB3oXP22bja9QhvZ2DP46GMcmMdNa/j2NKYqPRrEzEzStUnH3AyI90PvS0xV3Bgq0zfx/UdQ/sbqgFO/+hXmvSo7mrV/+q01UiOXB+DxikFb21WgZ4fpRdhMRe9maxAlYbTOzAJ99cvEzQJ8TN7wggxeuZM+N7xQON0YSl8DnZdmaFvO2VmDeLh4WQoaYeGuJ0p1Xgg7vPEi/PBTlw0XdxZYlHFdCCeT3z5sM3ST/ZyFN2WZR4cXEyamB3ABKlG8LBLza6K+4LOj/GyaM1WnpnA29/FJICYJfeHVUp/SUC2UP1RnE5fGolOm8CJ/ZdflIeQToLBUuaYRlXtdfbDNIG3q/hZdmMPLXsn4oz4=
+android:
+  components:
+  - build-tools-$ANDROID_BUILD_TOOLS
+  - android-$ANDROID_API
+  - extra-android-m2repository
+before_cache:
+- rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
+- rm -fr $HOME/.gradle/caches/*/plugin-resolution/
+cache:
+  directories:
+  - "$HOME/.gradle/caches/"
+  - "$HOME/.gradle/wrapper/"
+  - "$HOME/.android/build-cache"
+before_install:
+- export PROJECT_ROOT="${PWD}"
+- chmod +x ${PROJECT_1}/gradlew
+- chmod +x result_parser.py
+before_script:
+- adb kill-server
+- adb connect ${EMULATOR_SERVER}
+- adb devices
+script:
+- cd ${PROJECT_ROOT}
+- cd ${PROJECT_1} && ./gradlew connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.android.scorekeeper.${TESTNAME}
+  --stacktrace
+- cat app/src/androidTest/java/com/example/android/scorekeeper/${TESTNAME}.java |
+  grep 'perform(click())'; export R1=$?
+- cat app/src/androidTest/java/com/example/android/scorekeeper/${TESTNAME}.java |
+  grep 'check(matches(withText("Day Mode")))'; export R2=$?
+- cat app/src/androidTest/java/com/example/android/scorekeeper/${TESTNAME}.java |
+  grep 'check(matches(withText("Night Mode")))'; export R3=$?
+- test $R1 -eq 0 && test $R2 -eq 0 && test $R3 -eq 0
+after_script:
+- cd ${PROJECT_ROOT}
+- touch results.txt
+- if [ $R1 -eq 0  ] && [ $R2 -eq 0  ] && [ $R3 -eq 0 ]; then ./result_parser.py ${PROJECT_ROOT}/${PROJECT_1}/app/build/reports/androidTests/connected/com.example.android.scorekeeper.${TESTNAME}.html
+  >> results.txt; fi
+- echo $(basename ${TRAVIS_REPO_SLUG}) ${TRAVIS_BRANCH} ${TRAVIS_COMMIT} $(git show
+  -s --format=%ci ${TRAVIS_COMMIT} | cut -c 1-20) $(cat results.txt) > results.txt
+- awk  '//{for(i=6;i<NF;i=i+2) print $i"\t"$(i+1)}' results.txt
+- curl -d "@results.txt" -X POST ${DB_SERVER_URL}

@@ -1,0 +1,40 @@
+language: android
+dist: trusty
+env:
+  global:
+  - ANDROID_API=26
+  - ANDROID_BUILD_TOOLS=26.0.2
+  - PROJECT_1=SharedPrefs
+  - PROJECT_2=DroidCafeWithSettings
+  - secure: eWjjdsu8J+nr48OYU1VKnffxhJHe18OWjjuDxU7BtQyOGMgp+9F2t9FDXx5CNQD4Z3W7DFTUUDZVVArYxUTNRpnBFTtfpSKcK4cg3Y0P9N632iG0NqDEaAUB7/0/qU61yi4YA6AzBfvHf7D9Rz3OCXQXtV5aJd3RfHY4KUb2SE/YXLeEJ5YMV/QgRwuICW/d3OK8iY/VOejGuwoxJjBj/0UCreLdkr8GHJf0XsMP2mD+XQybz8TbOQmZRkKTOTMqhaLSXeGBBqi0iIvAI4RPqnvMNBokco54nv8zcDue/1j+X9KvrvnentzKjfelNcy6qnMCnFOG4fJTBrvUMW/Ws09Xt/cbEtBzky8hAo1JWT6Tzi3MwI+iRhB6tgRTyp63XNOBZlM0eTpPcH6rbTRMP0qeOTosg6n2q/0yfeFnGM4flt74tbDWrEVyZ1NuA3qsuO1PCpygQTkWn3jReIKKX64BoCJl+exGdGHs2dgiRd0JnMfbmXmUcCkA+QFnNk12lIHk2ggqjHxxc1T6rWXaPgsegBRKTz6CnSaEbUK+miUA4Q52E/1UfdPm7hgchvpErjOMqYSbSKE3KZolfFDlN8XV5B0dtUvxjjNG27ZsaLT7zDJHMTCG3RPas/qS8UatYYKWc4up/YrJX7D/S6HSV1DZWgw2I1aAHErZbIzd0TE=
+  - secure: Uu5NgHxt37mjMQSC8qVgcQisuA0mxOiYz5tgZfNC2hWJmOnJZ+1eUkfQ9Q3s64tJDD6Pl90VUIgxImEeJnSjQwwWgmINgqeFhxmgZkp7OjH9qIhqnK654kjZZ3LPcY38phnJrJ+EtpLDPeT38geKrZxMjY67CFEw9MCPIEgC3PkF5n6wUWGKKLEYDBOPfL5B9Hpd4ybchVU3Vmh8BkM8Vv3jDw8ce8NoCOzfg3Kc2T2Gmq0Ice40LjqlVdOF4/clb8DRR8w+DE5K0VRw9rREhmLW7wVkgJ8Ue6uZVkHWrelBA946ll5cmcyfS0KjxdskVuUJb9ayJQcAAyWS+IXjxwLmHdQuE7ER0vqsDS7tLyLjfrkn4T6U6PJJTFD17bCps/TWrSG+YREdpWIxmBnh28ub6pkzqiQiEWyEWyYjvGsAJ7P2igSz2gi/AzHGC6muq7z0FN7AV8TIFzWHSt+gxOL5imB1bVRLGdvrdwrILOAi69d8RPFPBmnMvd7RBHiDOxB3hhnwwsvEmKkIU/Od+Z3nKJDqFFd+2/88y7Xo2LR04Yfe4gQ9m2hxS0UvdpheSWttzeBdPeH4MKLmqpXH8jv6utJVegQ4MHKxqgRP4pGEXiM6+MQo+cv65IIWsW/VLnzFsom2OhNnUUAlUmKqnzIpAQKuDPw1spfJu3StTFw=
+branches:
+  only:
+  - master
+android:
+  components:
+  - build-tools-$ANDROID_BUILD_TOOLS
+  - android-$ANDROID_API
+  - extra-android-m2repository
+before_install:
+- export PROJECT_ROOT="${PWD}"
+- chmod +x ${PROJECT_1}/gradlew
+- chmod +x result_parser.py
+before_script:
+- adb kill-server
+- adb connect ${EMULATOR_SERVER}
+- adb devices
+script:
+- cd ${PROJECT_ROOT}
+- cd ${PROJECT_1} && ./gradlew connectedAndroidTest --stacktrace
+- cd ${PROJECT_ROOT} && ./result_parser.py ${PROJECT_ROOT}/${PROJECT_1}/app/build/reports/androidTests/connected/com.example.android.sharedprefs.SharedPrefsTest.html
+  >> results.txt
+- cd ${PROJECT_2} && ./gradlew connectedAndroidTest --stacktrace
+- cd ${PROJECT_ROOT} && ./result_parser.py ${PROJECT_ROOT}/${PROJECT_2}/app/build/reports/androidTests/connected/com.example.android.droidcafeinput.DeliveryTest.html
+  >> results.txt
+after_script:
+- cd ${PROJECT_ROOT}
+- echo $(basename ${TRAVIS_REPO_SLUG}) ${TRAVIS_BRANCH} ${TRAVIS_COMMIT} $(git show
+  -s --format=%ci ${TRAVIS_COMMIT} | cut -c 1-20) $(cat results.txt) > results.txt
+- awk  '//{for(i=6;i<NF;i=i+2) print $i"\t"$(i+1)}' results.txt
+- curl -d "@results.txt" -X POST ${DB_SERVER_URL}
